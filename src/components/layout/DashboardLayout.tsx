@@ -62,10 +62,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* Mobile Sidebar (Dropdown style) */}
+      {/* Mobile Sidebar */}
       {mobileOpen && (
         <aside className="md:hidden w-full bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 z-40">
-          {/* Dark/Light Mode Toggle */}
           <button
             onClick={() => setDarkMode(!darkMode)}
             className="flex items-center gap-2 px-4 py-2 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition mb-4"
@@ -73,8 +72,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             {darkMode ? "Light Mode" : "Dark Mode"}
           </button>
-
-          {/* Navigation Links */}
           <nav className="flex flex-col gap-2">
             {sections.map((section) => (
               <a
@@ -124,8 +121,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-4 sm:p-6 space-y-6 min-h-screen">
+      <main className="flex-1 p-4 sm:p-6 space-y-6 min-h-screen flex flex-col">
         {children}
+        {/* Footer */}
+        <footer className="mt-auto text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+          © 2025 Ritesh Raj
+        </footer>
       </main>
     </div>
   );

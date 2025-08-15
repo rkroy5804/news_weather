@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, FC } from "react";
+import Image from "next/image";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface WeatherWidgetProps {
   cityId?: number;
+}
+
+interface ForecastItem {
+  date: string;
+  temp: number;
+  condition: string;
+  icon: string;
 }
 
 interface WeatherData {
@@ -16,13 +24,18 @@ interface WeatherData {
     wind: number;
     icon: string;
   };
-  forecast: {
-    date: string;
-    temp: number;
-    condition: string;
-    icon: string;
-  }[];
+  forecast: ForecastItem[];
   city: string;
+}
+
+interface OpenWeatherForecastItem {
+  dt_txt: string;
+  main: { temp: number };
+  weather: { main: string; icon: string }[];
+}
+
+interface OpenWeatherForecastResponse {
+  list: OpenWeatherForecastItem[];
 }
 
 const cities = [
@@ -33,8 +46,8 @@ const cities = [
   { id: 1269515, name: "Kolkata" },
 ];
 
-export default function WeatherWidget({ cityId = 1259229 }: WeatherWidgetProps) {
-  const [selectedCity, setSelectedCity] = useState(cityId);
+const WeatherWidget: FC<WeatherWidgetProps> = ({ cityId = 1259229 }) => {
+  const [selectedCity, setSelectedCity] = useState<number>(cityId);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,42 +56,50 @@ export default function WeatherWidget({ cityId = 1259229 }: WeatherWidgetProps) 
     const fetchWeather = async () => {
       setLoading(true);
       setError(null);
+
       try {
         const apiKey = process.env.NEXT_PUBLIC_WEATHER_API_KEY;
         if (!apiKey) throw new Error("OpenWeatherMap API key not set");
 
-        const resCurrent = await fetch(
-          `https://api.openweathermap.org/data/2.5/weather?id=${selectedCity}&units=metric&appid=${apiKey}`
+        const currentRes = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?id=${selectedCity}&units=metric&appid=${encodeURIComponent(apiKey)}`
         );
-        const dataCurrent = await resCurrent.json();
+        const currentData = await currentRes.json();
 
-        const resForecast = await fetch(
-          `https://api.openweathermap.org/data/2.5/forecast?id=${selectedCity}&units=metric&appid=${apiKey}`
+        const forecastRes = await fetch(
+          `https://api.openweathermap.org/data/2.5/forecast?id=${selectedCity}&units=metric&appid=${encodeURIComponent(apiKey)}`
         );
-        const dataForecast = await resForecast.json();
+        const forecastData: OpenWeatherForecastResponse = await forecastRes.json();
 
-        const forecastList = dataForecast.list
-          .filter((_: any, index: number) => index % 8 === 0)
-          .map((f: any) => ({
-            date: new Date(f.dt_txt).toLocaleDateString("en-IN", { weekday: "short", day: "numeric" }),
-            temp: f.main.temp,
-            condition: f.weather[0].main,
-            icon: `https://openweathermap.org/img/wn/${f.weather[0].icon}@2x.png`,
+        const forecastList: ForecastItem[] = forecastData.list
+          .filter((_, index) => index % 8 === 0)
+          .map((f: OpenWeatherForecastItem) => ({
+            date: new Date(f.dt_txt).toLocaleDateString("en-IN", {
+              weekday: "short",
+              day: "numeric",
+            }),
+            temp: Math.round(f.main?.temp ?? 0),
+            condition: f.weather?.[0]?.main ?? "N/A",
+            icon: f.weather?.[0]?.icon
+              ? `https://openweathermap.org/img/wn/${f.weather[0].icon}@2x.png`
+              : "/placeholder.png",
           }));
 
         setWeather({
-          city: dataCurrent.name,
+          city: currentData.name,
           current: {
-            temp: dataCurrent.main.temp,
-            condition: dataCurrent.weather[0].main,
-            humidity: dataCurrent.main.humidity,
-            wind: dataCurrent.wind.speed,
-            icon: `https://openweathermap.org/img/wn/${dataCurrent.weather[0].icon}@2x.png`,
+            temp: Math.round(currentData.main.temp),
+            condition: currentData.weather?.[0]?.main ?? "N/A",
+            humidity: currentData.main.humidity,
+            wind: currentData.wind.speed,
+            icon: currentData.weather?.[0]?.icon
+              ? `https://openweathermap.org/img/wn/${currentData.weather[0].icon}@2x.png`
+              : "/placeholder.png",
           },
           forecast: forecastList,
         });
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch weather");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to fetch weather");
       } finally {
         setLoading(false);
       }
@@ -88,64 +109,68 @@ export default function WeatherWidget({ cityId = 1259229 }: WeatherWidgetProps) 
   }, [selectedCity]);
 
   return (
-    <Card className="w-full max-w-8xl h-[80vh] mx-auto p-4 py-12 relative hover:shadow-xl transition-shadow bg-white dark:bg-gray-800">
+    <Card className="w-full max-w-8xl mx-auto p-4 sm:p-6 bg-white dark:bg-gray-800">
       {/* Header */}
       <CardHeader className="text-center mb-4 flex flex-col sm:flex-row sm:justify-between items-center gap-4">
-        {/* Weather Title */}
-        <CardTitle className="text-xl font-bold text-gray-900 dark:text-gray-100 order-1 sm:order-1">
+        <CardTitle className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
           Weather
         </CardTitle>
-
-        {/* City Selector */}
-        <div className="mt-2 sm:mt-0 order-2 sm:order-2">
-          <Select value={String(selectedCity)} onValueChange={(val) => setSelectedCity(Number(val))}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Select City" />
-            </SelectTrigger>
-            <SelectContent>
-              {cities.map((city) => (
-                <SelectItem key={city.id} value={String(city.id)}>
-                  {city.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={String(selectedCity)} onValueChange={(val) => setSelectedCity(Number(val))}>
+          <SelectTrigger className="w-36 sm:w-40">
+            <SelectValue placeholder="Select City" />
+          </SelectTrigger>
+          <SelectContent>
+            {cities.map((city) => (
+              <SelectItem key={city.id} value={String(city.id)}>
+                {city.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </CardHeader>
 
-      {loading && <p className="text-center mt-20 text-gray-900 dark:text-gray-100">Loading weather...</p>}
-      {error && <p className="text-red-500 text-center mt-20">{error}</p>}
+      {/* Loading / Error */}
+      {loading && <p className="text-center mt-8">Loading weather...</p>}
+      {error && <p className="text-red-500 text-center mt-8">{error}</p>}
 
+      {/* Weather Data */}
       {weather && (
         <>
-          {/* Current Weather Info */}
+          {/* Current Weather */}
           <div className="text-center mb-4">
-            <p className="text-xl text-gray-900 dark:text-gray-100 font-semibold">{weather.city}</p>
-            <p className="text-lg text-gray-900 dark:text-gray-200">
+            <p className="text-lg sm:text-xl font-semibold">{weather.city}</p>
+            <p className="text-base sm:text-lg">
               {weather.current.temp}°C - {weather.current.condition}
             </p>
-            <div className="flex flex-col sm:flex-row justify-center mt-2 gap-2 sm:gap-4 text-gray-700 dark:text-gray-300">
+            <div className="flex flex-col sm:flex-row justify-center mt-2 gap-2 sm:gap-4 text-sm sm:text-base">
               <p>Humidity: {weather.current.humidity}%</p>
               <p>Wind: {weather.current.wind} m/s</p>
             </div>
           </div>
 
-          {/* Weather Icon */}
-          <div className="flex justify-center mb-4 animate-fade-in">
-            <img src={weather.current.icon} alt={weather.current.condition} className="w-32 h-32" />
+          {/* Icon */}
+          <div className="flex justify-center mb-4">
+            <Image
+              src={weather.current.icon}
+              alt={weather.current.condition}
+              width={128}
+              height={128}
+              className="sm:w-32 sm:h-32"
+              priority
+            />
           </div>
 
-          {/* 5-Day Forecast */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 mt-4">
-            {weather.forecast.map((f) => (
+          {/* Forecast */}
+          <div className="flex overflow-x-auto gap-4 sm:grid sm:grid-cols-5 sm:overflow-visible pb-2">
+            {weather.forecast.map((f: ForecastItem, idx: number) => (
               <div
-                key={f.date}
-                className="flex flex-col items-center bg-gradient-to-b from-blue-100 to-blue-50 dark:from-gray-700 dark:to-gray-600 p-2 rounded-lg shadow hover:scale-105 transform transition"
+                key={`${f.date}-${idx}`}
+                className="flex-shrink-0 w-28 sm:w-auto flex flex-col items-center bg-gradient-to-b from-blue-100 to-blue-50 dark:from-gray-700 dark:to-gray-600 p-2 rounded-lg shadow"
               >
-                <p className="font-semibold text-gray-900 dark:text-gray-100">{f.date}</p>
-                <img src={f.icon} alt={f.condition} className="w-16 h-16" />
-                <p className="text-gray-900 dark:text-gray-100">{f.temp}°C</p>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{f.condition}</p>
+                <p className="font-semibold text-sm sm:text-base">{f.date}</p>
+                <Image src={f.icon} alt={f.condition} width={64} height={64} className="sm:w-16 sm:h-16" />
+                <p className="text-sm sm:text-base">{f.temp}°C</p>
+                <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">{f.condition}</p>
               </div>
             ))}
           </div>
@@ -153,4 +178,6 @@ export default function WeatherWidget({ cityId = 1259229 }: WeatherWidgetProps) 
       )}
     </Card>
   );
-}
+};
+
+export default WeatherWidget;

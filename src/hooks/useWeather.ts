@@ -1,64 +1,70 @@
-import { useState, useEffect } from "react";
+// src/hooks/useNews.ts
+"use client";
 
-export interface ForecastDay {
-  date: string;
-  temperature: number;
-  condition: string;
-  icon: string;
+import { useState, useEffect, useCallback } from "react";
+
+export interface NewsArticle {
+  title: string;
+  description: string;
+  url: string;
+  urlToImage: string;
+  publishedAt: string;
+  source: { name: string };
 }
 
-export interface WeatherData {
-  city: string;
-  temperature: number;
-  condition: string;
-  humidity: number;
-  windSpeed: number;
-  forecast: ForecastDay[];
+interface UseNewsProps {
+  category?: string;
+  searchTerm?: string;
+  pageSize?: number;
+  page?: number;
 }
 
-export const useWeather = (cityId: number) => {
-  const [data, setData] = useState<WeatherData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+interface NewsApiResponse {
+  status: "ok" | "error";
+  totalResults: number;
+  articles: NewsArticle[];
+  code?: string;
+  message?: string;
+}
+
+export const useNews = ({
+  category = "",
+  searchTerm = "",
+  pageSize = 4,
+  page = 1,
+}: UseNewsProps) => {
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchNews = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_NEWS_API_KEY;
+      if (!apiKey) throw new Error("News API key not set");
+
+      const query = encodeURIComponent(searchTerm || category || "latest");
+      const url = `https://newsapi.org/v2/everything?q=${query}&pageSize=${pageSize}&page=${page}&sortBy=publishedAt&apiKey=${apiKey}`;
+
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+
+      const data: NewsApiResponse = await res.json();
+      if (data.status !== "ok") throw new Error(data.message || "Failed to fetch news");
+
+      setArticles(data.articles || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error fetching news");
+    } finally {
+      setLoading(false);
+    }
+  }, [category, searchTerm, page, pageSize]);
+
   useEffect(() => {
-    const fetchWeather = async () => {
-      setLoading(true);
-      setError(null);
+    fetchNews();
+  }, [fetchNews]);
 
-      try {
-        const apiKey = process.env.NEXT_PUBLIC_WEATHER_API_KEY;
-        const url = `http://api.openweathermap.org/data/2.5/forecast?id=${cityId}&units=metric&appid=${apiKey}`;
-
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Failed to fetch weather");
-
-        const json = await res.json();
-
-        const weatherData: WeatherData = {
-          city: json.city.name,
-          temperature: json.list[0].main.temp,
-          condition: json.list[0].weather[0].main,
-          humidity: json.list[0].main.humidity,
-          windSpeed: json.list[0].wind.speed,
-          forecast: json.list.slice(0, 5).map((item: any) => ({
-            date: item.dt_txt,
-            temperature: item.main.temp,
-            condition: item.weather[0].main,
-            icon: `http://openweathermap.org/img/wn/${item.weather[0].icon}@2x.png`,
-          })),
-        };
-
-        setData(weatherData);
-      } catch (err: any) {
-        setError(err.message || "Unknown error");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWeather();
-  }, [cityId]);
-
-  return { data, loading, error };
+  return { articles, loading, error, refetch: fetchNews };
 };

@@ -1,7 +1,7 @@
 // src/hooks/useNews.ts
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 export interface NewsArticle {
   title: string;
@@ -19,37 +19,52 @@ interface UseNewsProps {
   page?: number;
 }
 
-export const useNews = ({ category = "", searchTerm = "", pageSize = 4, page = 1 }: UseNewsProps) => {
+interface NewsApiResponse {
+  status: "ok" | "error";
+  totalResults: number;
+  articles: NewsArticle[];
+  code?: string;
+  message?: string;
+}
+
+export const useNews = ({
+  category = "",
+  searchTerm = "",
+  pageSize = 4,
+  page = 1,
+}: UseNewsProps) => {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchNews = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const apiKey = process.env.NEXT_PUBLIC_NEWS_API_KEY;
-        if (!apiKey) throw new Error("News API key not set");
+  const fetchNews = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-        const query = searchTerm || category || "latest";
-        const res = await fetch(
-          `https://newsapi.org/v2/everything?q=${query}&pageSize=${pageSize}&page=${page}&sortBy=publishedAt&apiKey=${apiKey}`
-        );
-        const data = await res.json();
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_NEWS_API_KEY;
+      if (!apiKey) throw new Error("News API key not set");
 
-        if (data.status !== "ok") throw new Error(data.message || "Failed to fetch news");
+      const query = encodeURIComponent(searchTerm || category || "latest");
+      const url = `https://newsapi.org/v2/everything?q=${query}&pageSize=${pageSize}&page=${page}&sortBy=publishedAt&apiKey=${apiKey}`;
 
-        setArticles(data.articles || []);
-      } catch (err: any) {
-        setError(err.message || "Error fetching news");
-      } finally {
-        setLoading(false);
-      }
-    };
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
 
-    fetchNews();
+      const data: NewsApiResponse = await res.json();
+      if (data.status !== "ok") throw new Error(data.message || "Failed to fetch news");
+
+      setArticles(data.articles || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error fetching news");
+    } finally {
+      setLoading(false);
+    }
   }, [category, searchTerm, page, pageSize]);
 
-  return { articles, loading, error };
+  useEffect(() => {
+    fetchNews();
+  }, [fetchNews]);
+
+  return { articles, loading, error, refetch: fetchNews };
 };

@@ -19,14 +19,6 @@ interface UseNewsProps {
   page?: number;
 }
 
-interface NewsApiResponse {
-  status: "ok" | "error";
-  totalResults: number;
-  articles: NewsArticle[];
-  code?: string;
-  message?: string;
-}
-
 export const useNews = ({
   category = "",
   searchTerm = "",
@@ -42,17 +34,17 @@ export const useNews = ({
     setError(null);
 
     try {
-      const apiKey = process.env.NEXT_PUBLIC_NEWS_API_KEY;
-      if (!apiKey) throw new Error("News API key not set");
+      const queryParams = new URLSearchParams({
+        category,
+        searchTerm,
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+      });
 
-      const query = encodeURIComponent(searchTerm || category || "latest");
-      const url = `https://newsapi.org/v2/everything?q=${query}&pageSize=${pageSize}&page=${page}&sortBy=publishedAt&apiKey=${apiKey}`;
+      const res = await fetch(`/api/news?${queryParams.toString()}`, { cache: "no-store" });
+      const data = await res.json();
 
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
-
-      const data: NewsApiResponse = await res.json();
-      if (data.status !== "ok") throw new Error(data.message || "Failed to fetch news");
+      if (data.error) throw new Error(data.error);
 
       setArticles(data.articles || []);
     } catch (err: unknown) {

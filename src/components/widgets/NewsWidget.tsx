@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Image from "next/image"; // ✅ Import next/image
 import { useNews, NewsArticle } from "@/hooks/useNews";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,16 +57,12 @@ export default function NewsWidget() {
             key={`${article.url}-${index}`}
             className="flex flex-col sm:flex-row bg-gray-50 dark:bg-gray-700 rounded-lg shadow hover:shadow-lg transition p-4 gap-4"
           >
-            <div className="relative w-full sm:w-40 h-32 sm:h-auto flex-shrink-0">
-              <Image
-                src={article.urlToImage || "/placeholder.png"}
-                alt={article.title}
-                fill
-                className="object-cover rounded"
-                sizes="(max-width: 640px) 100vw, 160px" // ✅ Responsive image sizing
-                priority={index < 2} // ✅ Prioritize first 2 images for LCP
-              />
-            </div>
+            <img
+              src={article.urlToImage || "/placeholder.png"}
+              alt={article.title}
+              loading="lazy" // ✅ Improves performance by lazy-loading images
+              className="w-full sm:w-40 h-32 sm:h-auto object-cover rounded flex-shrink-0"
+            />
             <div className="flex flex-col justify-between">
               <h3 className="font-semibold text-lg line-clamp-2 sm:line-clamp-3 text-gray-900 dark:text-gray-100">
                 {article.title}
@@ -78,7 +73,7 @@ export default function NewsWidget() {
               <a
                 href={article.url}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener noreferrer" // ✅ Security improvement
                 className="mt-2 text-blue-600 dark:text-blue-400 hover:underline font-medium"
               >
                 Read More
